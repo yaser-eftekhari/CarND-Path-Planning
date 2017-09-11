@@ -8,6 +8,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
 
 using namespace std;
 
@@ -239,8 +240,111 @@ int main() {
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
+            // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+            int lane_index = 1; //left lane is 0, middle lane 1 and right lane 2
+            double speed_ref = 49.5 * 0.44704; // reference velocity for car to follow (m/sec)
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+            int prev_list_size = previous_path_x.size();
+
+            // vectors to generate path point in
+            vector<double> ptsx;
+            vector<double> ptsy;
+
+            // reference to where the car is at this instant
+            double curr_car_x;
+            double curr_car_y;
+            double curr_car_yaw;
+
+            // reference to where the car was an instant ago
+            double prev_car_x;
+            double prev_car_y;
+
+            // generate two points from where the car is
+            if(prev_list_size < 2) {
+              curr_car_x = car_x;
+              curr_car_y = car_y;
+              curr_car_yaw = deg2rad(car_yaw);
+
+              prev_car_x = car_x - cos(curr_car_yaw);
+              prev_car_y = car_y - sin(curr_car_yaw);
+            } else {
+              curr_car_x = previous_path_x[prev_list_size - 1];
+              curr_car_y = previous_path_y[prev_list_size - 1];
+
+              prev_car_x = previous_path_x[prev_list_size - 2];
+              prev_car_y = previous_path_y[prev_list_size - 2];
+
+              curr_car_yaw = atan2(curr_car_y - prev_car_y, curr_car_x - prev_car_x);
+            }
+            ptsx.push_back(prev_car_x);
+            ptsx.push_back(curr_car_x);
+
+            ptsy.push_back(prev_car_y);
+            ptsy.push_back(curr_car_y);
+
+            // generate three waypoints far apart from where we want to be
+            vector<double> next_wp0 = getXY(car_s + 30, 2 + 4 * lane_index, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 = getXY(car_s + 60, 2 + 4 * lane_index, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 = getXY(car_s + 90, 2 + 4 * lane_index, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+            ptsx.push_back(next_wp0[0]);
+            ptsx.push_back(next_wp1[0]);
+            ptsx.push_back(next_wp2[0]);
+
+            ptsy.push_back(next_wp0[1]);
+            ptsy.push_back(next_wp1[1]);
+            ptsy.push_back(next_wp2[1]);
+
+            // shift the coordinates to be the car coordinates
+            for(int i = 0; i < ptsx.size(); i++) {
+              // shift x and y to be with reference to the car location
+              double shift_x = ptsx[i] - curr_car_x;
+              double shift_y = ptsy[i] - curr_car_y;
+
+              // transform the points in the array according to the new coordinates
+              ptsx[i] = (shift_x * cos(curr_car_yaw)) + (shift_y * sin(curr_car_yaw));
+              ptsy[i] = (shift_y * cos(curr_car_yaw)) - (shift_x * sin(curr_car_yaw));
+            }
+
+            // create a spline
+            tk::spline s;
+
+            // set spline x and y points
+            s.set_points(ptsx, ptsy);
+
+            // First move over any remaining points from previous path
+            for(int i = 0; i < prev_list_size; i++) {
+              next_x_vals.push_back(previous_path_x[i]);
+              next_y_vals.push_back(previous_path_y[i]);
+            }
+
+            // Looking 30 m in advance and trying to find desired spacing between the points based on desired speed
+            double target_x = 30;
+            double target_y = s(target_x);
+            double distance2target = distance(0, target_x, 0, target_y);
+
+            // N*0.02*velocity = distance => N = distance2target/(0.02*speed_ref) = 50*distance2target/speed_ref
+            double N = 50*distance2target/speed_ref;
+            double x_increments = target_x/N;
+
+            // generate remaining waypoints
+            for(int i = 0; i < 50 - prev_list_size; i++) {
+              double x_point = (i + 1) * x_increments;
+              double y_point = s(x_point);
+
+              // transform back the x and y from car coordinates to map coordinates
+              double x_map_coordinate = (x_point*cos(curr_car_yaw)) - (y_point*sin(curr_car_yaw));
+              double y_map_coordinate = (x_point*sin(curr_car_yaw)) + (y_point*cos(curr_car_yaw));
+
+              x_map_coordinate += x_point;
+              y_map_coordinate += y_point;
+
+              next_x_vals.push_back(x_map_coordinate);
+              next_y_vals.push_back(y_map_coordinate);
+            }
+
+            // end of TODO.
+
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
