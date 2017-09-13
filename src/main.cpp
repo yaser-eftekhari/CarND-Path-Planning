@@ -168,6 +168,13 @@ void print_array(vector<double> array) {
   printf("\n");
 }
 
+const double HIGHEST_SPEED = 49.5 * 0.44704;
+const double SPEED_CHANGE = 0.224 * 0.44704;
+const double closeness_threshold = 30; // if the other cars are 30 m or closer, take action
+
+int lane_index = 1; //left lane is 0, middle lane 1 and right lane 2
+double speed_ref = 0; // reference velocity for car to follow (m/sec)
+
 int main() {
   uWS::Hub h;
 
@@ -245,10 +252,6 @@ int main() {
         	json msgJson;
 
           // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-          int lane_index = 1; //left lane is 0, middle lane 1 and right lane 2
-          double speed_ref = 49.5 * 0.44704; // reference velocity for car to follow (m/sec)
-          double closeness_threshold = 30; // if the other cars are 30 m or closer, take action
-
           int prev_size = previous_path_x.size();
 
           // TODO: do we really need this???
@@ -257,6 +260,7 @@ int main() {
           // }
 
           // Check all cars on the road to find possible collisions
+          bool too_close = false;
           for(int i = 0; i < sensor_fusion.size(); i++) {
             double other_car_d = sensor_fusion[i][6];
             // if other car is in our lane
@@ -272,10 +276,17 @@ int main() {
 
               // Check to see if the other car is too close to us
               if((other_car_s > end_path_s) && (other_car_s - end_path_s < closeness_threshold)) {
-                speed_ref = other_car_speed;
+                // speed_ref = other_car_speed;
+                too_close = true;
                 break;
               }
             }
+          }
+
+          if(too_close) {
+            speed_ref -= SPEED_CHANGE; // break with 5 m/s2
+          } else if(speed_ref < HIGHEST_SPEED) {
+            speed_ref += SPEED_CHANGE;
           }
 
           // vectors to generate path point in
