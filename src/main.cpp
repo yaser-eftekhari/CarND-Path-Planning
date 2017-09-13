@@ -247,8 +247,36 @@ int main() {
           // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           int lane_index = 1; //left lane is 0, middle lane 1 and right lane 2
           double speed_ref = 49.5 * 0.44704; // reference velocity for car to follow (m/sec)
+          double closeness_threshold = 30; // if the other cars are 30 m or closer, take action
 
           int prev_size = previous_path_x.size();
+
+          // TODO: do we really need this???
+          // if(prev_size > 0) {
+          //   car_s = end_path_s;
+          // }
+
+          // Check all cars on the road to find possible collisions
+          for(int i = 0; i < sensor_fusion.size(); i++) {
+            double other_car_d = sensor_fusion[i][6];
+            // if other car is in our lane
+            if((other_car_d > (4 * lane_index)) && (other_car_d < (4 * (lane_index + 1)))) {
+              // find the speed of the other car and its s coordinate
+              double other_car_vx = sensor_fusion[i][3];
+              double other_car_vy = sensor_fusion[i][4];
+              double other_car_s = sensor_fusion[i][5];
+              double other_car_speed = distance(0, 0, other_car_vx, other_car_vy);
+
+              // where the other car is going to be after simulator processes the remaining points
+              other_car_s += prev_size * 0.02 * other_car_speed;
+
+              // Check to see if the other car is too close to us
+              if((other_car_s > end_path_s) && (other_car_s - end_path_s < closeness_threshold)) {
+                speed_ref = other_car_speed;
+                break;
+              }
+            }
+          }
 
           // vectors to generate path point in
           vector<double> ptsx;
@@ -277,7 +305,7 @@ int main() {
 
             prev_car_x = previous_path_x[prev_size - 2];
             prev_car_y = previous_path_y[prev_size - 2];
-            
+
             current_car_yaw = atan2(current_car_y - prev_car_y, current_car_x - prev_car_x);
           }
           ptsx.push_back(prev_car_x);
