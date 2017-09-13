@@ -255,9 +255,9 @@ int main() {
           int prev_size = previous_path_x.size();
 
           // TODO: do we really need this???
-          // if(prev_size > 0) {
-          //   car_s = end_path_s;
-          // }
+          if(prev_size > 0) {
+            car_s = end_path_s;
+          }
 
           // Check all cars on the road to find possible collisions
           bool too_close = false;
@@ -275,9 +275,12 @@ int main() {
               other_car_s += prev_size * 0.02 * other_car_speed;
 
               // Check to see if the other car is too close to us
-              if((other_car_s > end_path_s) && (other_car_s - end_path_s < closeness_threshold)) {
+              if((other_car_s > car_s) && (other_car_s - car_s < closeness_threshold)) {
                 // speed_ref = other_car_speed;
                 too_close = true;
+                if(lane_index > 0) {
+                  lane_index = 0;
+                }
                 break;
               }
             }
