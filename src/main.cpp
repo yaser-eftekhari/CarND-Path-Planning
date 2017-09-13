@@ -255,9 +255,9 @@ int main() {
           vector<double> ptsy;
 
           // reference to where the car is at this instant
-          double ref_x = car_x;
-          double ref_y = car_y;
-          double ref_yaw = deg2rad(car_yaw);
+          double current_car_x;
+          double current_car_y;
+          double current_car_yaw;
 
           // reference to where the car was an instant ago
           double prev_car_x;
@@ -265,25 +265,26 @@ int main() {
 
           // generate two points from where the car is
           if(prev_size < 2) {
-            double prev_car_x = car_x - cos(car_yaw);
-            double prev_car_y = car_y - sin(car_yaw);
+            current_car_x = car_x;
+            current_car_y = car_y;
+            current_car_yaw = deg2rad(car_yaw);
 
-            ptsx.push_back(prev_car_x);
-            ptsx.push_back(car_x);
-
-            ptsy.push_back(prev_car_y);
-            ptsy.push_back(car_y);
+            prev_car_x = current_car_x - cos(car_yaw);
+            prev_car_y = current_car_y - sin(car_yaw);
           } else {
-            ref_x = previous_path_x[prev_size - 1];
-            ref_y = previous_path_y[prev_size - 1];
-            double prev_ref_x = previous_path_x[prev_size - 2];
-            double prev_ref_y = previous_path_y[prev_size - 2];
-            ref_yaw = atan2(ref_y - prev_ref_y, ref_x - prev_ref_x);
-            ptsx.push_back(prev_ref_x);
-            ptsx.push_back(ref_x);
-            ptsy.push_back(prev_ref_y);
-            ptsy.push_back(ref_y);
+            current_car_x = previous_path_x[prev_size - 1];
+            current_car_y = previous_path_y[prev_size - 1];
+
+            prev_car_x = previous_path_x[prev_size - 2];
+            prev_car_y = previous_path_y[prev_size - 2];
+            
+            current_car_yaw = atan2(current_car_y - prev_car_y, current_car_x - prev_car_x);
           }
+          ptsx.push_back(prev_car_x);
+          ptsx.push_back(current_car_x);
+
+          ptsy.push_back(prev_car_y);
+          ptsy.push_back(current_car_y);
 
           // generate three waypoints far apart from where we want to be
           vector<double> next_wp0 = getXY(car_s + 30, 2 + 4 * lane_index, map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -301,11 +302,11 @@ int main() {
           // shift the coordinates to be the car coordinates
           for(int i = 0; i < ptsx.size(); i++) {
             // shift x and y to be with reference to the car location
-            double shift_x = ptsx[i] - ref_x;
-            double shift_y = ptsy[i] - ref_y;
+            double shift_x = ptsx[i] - current_car_x;
+            double shift_y = ptsy[i] - current_car_y;
 
-            ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
-            ptsy[i] = (shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw));
+            ptsx[i] = (shift_x * cos(current_car_yaw) + shift_y * sin(current_car_yaw));
+            ptsy[i] = (shift_y * cos(current_car_yaw) - shift_x * sin(current_car_yaw));
           }
 
           // create a spline
@@ -321,24 +322,25 @@ int main() {
           // Looking 30 m in advance and trying to find desired spacing between the points based on desired speed
           double target_x = 30;
           double target_y = s(target_x);
-          double target_dist = sqrt(target_x * target_x + target_y * target_y);
+          double distance2target = distance(0, 0, target_x, target_y);
 
           // N*0.02*velocity = distance => N = distance2target/(0.02*speed_ref) = 50*distance2target/speed_ref
+          double N = 50*distance2target/speed_ref;
+          double x_increment = target_x / N;
 
           // generate remaining waypoints
-          for(int i = 1; i <= 50 - previous_path_x.size(); i++) {
-            double N = (target_dist/(0.02 * speed_ref));
-            double x_point = i * target_x / N;
+          for(int i = 0; i < 50 - prev_size; i++) {
+            double x_point = (i + 1) * x_increment;
             double y_point = s(x_point);
 
             double x_ref = x_point;
             double y_ref = y_point;
 
-            x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw);
-            y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw);
+            x_point = x_ref * cos(current_car_yaw) - y_ref * sin(current_car_yaw);
+            y_point = x_ref * sin(current_car_yaw) + y_ref * cos(current_car_yaw);
 
-            x_point += ref_x;
-            y_point += ref_y;
+            x_point += current_car_x;
+            y_point += current_car_y;
 
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
