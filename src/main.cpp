@@ -171,8 +171,10 @@ void print_array(vector<double> array) {
 const double MPH2MPS = 0.44704;
 const double HIGHEST_SPEED = 49.5 * MPH2MPS;
 const double SPEED_CHANGE = 0.224 * MPH2MPS;
-const double closeness_threshold = 30; // if the other cars are 30 m or closer, take action
+const double DISTANCE_THRESHOLD_CHANGE_LANE = 10; // if the other car is not 5 m or closer, it is safe to switch lane
+const double DISTANCE_THRESHOLD_PATH_PLANNING = 30; // if the other cars are 30 m or closer, take action
 const int PREFERED_LANE = 1;
+const double CAR_LENGTH = 1.0;
 
 // We use only three states. Prepare lane change is discarded as we tend to do more sudden decisions here.
 enum planning_state {KL, LCL, LCR};
@@ -343,7 +345,7 @@ int main() {
             // if other car is in our lane
             if(other_car_lane == lane_index) {
               // Check to see if the other car is too close to us
-              if((other_car_s > car_s) && (other_car_s - car_s < closeness_threshold)) {
+              if((other_car_s > car_s) && (other_car_s - car_s < DISTANCE_THRESHOLD_PATH_PLANNING)) {
                 too_close = true;
                 speed_target = other_car_speed;
                 // if(lane_index > 0) {
@@ -360,28 +362,35 @@ int main() {
           //   speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
           // }
 
+          // TODO: consider different thresholds for lane changing. If a there is a car in front which is close, but it is required to switch lane to pass them all, then we should switch lane
+          // TODO: consider cars that are following (not too far behind but basically side)
+          // TODO: consider a cost function for the middle lane to choose the lane which has no car or the car is farther or it is going faster.
+          // TODO: a good metric to choose a lane is the number of cars in that lane in front of us
+          // TODO: something to consider is if there are cars in front of us which are not still to close to do path planning but there is a lane which has no car in it, we should probably switch lane. So basically another threshold for path planning but more futuristic. Maybe we can switch lane if we find another lane which has no car in it (or less cars)
+          // TODO: FIX: sometimes car stays on the lane lines
+
           // if we detected another car in our lane which is too close, consider changing lane
           planning_state state = KL;
           if(too_close) {
             switch(lane_index) {
               case 0:
-                if((leading_cars[1].s - car_s) > closeness_threshold) {
+                if((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
                   lane_index = 1;
                   state = LCR;
                 }
                 break;
               case 1:
-                if((leading_cars[0].s - car_s) > closeness_threshold) {
+                if((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
                   lane_index = 0;
                   state = LCL;
                 }
-                else if((leading_cars[2].s - car_s) > closeness_threshold) {
+                else if((leading_cars[2].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
                   lane_index = 2;
                   state = LCR;
                 }
                 break;
               case 2:
-                if((leading_cars[1].s - car_s) > closeness_threshold) {
+                if((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
                   lane_index = 1;
                   state = LCL;
                 }
