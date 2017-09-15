@@ -183,9 +183,7 @@ double speed_target = 0;
 
 struct neighboring_car {
   double speed;
-  double currect_s;
-  double predicted_s;
-  int lane;
+  double s;
 };
 
 vector<neighboring_car> leading_cars(3);
@@ -197,8 +195,22 @@ void initialize_neighboring_vectors(int lane_index) {
   feasible_lane_change[1] = true;
   feasible_lane_change[2] = (lane_index > 0)? true : false;
 
+  neighboring_car init_car;
+  init_car.s = 0;
+  init_car.speed = 0;
+
   following_cars.erase(following_cars.begin(), following_cars.end());
+  following_cars.push_back(init_car);
+  following_cars.push_back(init_car);
+  following_cars.push_back(init_car);
+
+  init_car.s = 99999;
+  init_car.speed = 0;
+
   leading_cars.erase(leading_cars.begin(), leading_cars.end());
+  leading_cars.push_back(init_car);
+  leading_cars.push_back(init_car);
+  leading_cars.push_back(init_car);
 }
 
 int find_lane(double d) {
@@ -301,39 +313,85 @@ int main() {
 
           // Check all cars on the road to find possible collisions
           for(int i = 0; i < sensor_fusion.size(); i++) {
+            double other_car_vx = sensor_fusion[i][3];
+            double other_car_vy = sensor_fusion[i][4];
+            double other_car_s = sensor_fusion[i][5];
             double other_car_d = sensor_fusion[i][6];
 
             // find other cars current lane
             int other_car_lane = find_lane(other_car_d);
 
+            // find the speed of the other car and its s coordinate
+            double other_car_speed = distance(0, 0, other_car_vx, other_car_vy);
+
+            // where the other car is going to be after simulator processes the remaining points
+            other_car_s += prev_size * 0.02 * other_car_speed;
+
+            // other car is in front
+            if(other_car_s > car_s) {
+              if(leading_cars[other_car_lane].s > other_car_s) {
+                leading_cars[other_car_lane].s = other_car_s;
+                leading_cars[other_car_lane].speed = other_car_speed;
+              }
+            } else { // other car is following
+              if(following_cars[other_car_lane].s < other_car_s) {
+                following_cars[other_car_lane].s = other_car_s;
+                following_cars[other_car_lane].speed = other_car_speed;
+              }
+            }
+
             // if other car is in our lane
             if(other_car_lane == lane_index) {
-              double other_car_vx = sensor_fusion[i][3];
-              double other_car_vy = sensor_fusion[i][4];
-              double other_car_s = sensor_fusion[i][5];
-
-              // find the speed of the other car and its s coordinate
-              double other_car_speed = distance(0, 0, other_car_vx, other_car_vy);
-
-              // where the other car is going to be after simulator processes the remaining points
-              other_car_s += prev_size * 0.02 * other_car_speed;
-
               // Check to see if the other car is too close to us
               if((other_car_s > car_s) && (other_car_s - car_s < closeness_threshold)) {
                 too_close = true;
                 speed_target = other_car_speed;
-                if(lane_index > 0) {
-                  lane_index = 0;
-                }
-                break;
+                // if(lane_index > 0) {
+                //   lane_index = 0;
+                // }
+                // break;
               }
             }
           }
 
+          // if(too_close) {
+          //   speed_ref = max(speed_ref - SPEED_CHANGE, speed_target); // break with 5 m/s2
+          // } else if(speed_ref < HIGHEST_SPEED) {
+          //   speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
+          // }
+
+          // if we detected another car in our lane which is too close, consider changing lane
+          planning_state state = KL;
           if(too_close) {
-            speed_ref = max(speed_ref - SPEED_CHANGE, speed_target); // break with 5 m/s2
-          } else if(speed_ref < HIGHEST_SPEED) {
-            speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
+            switch(lane_index) {
+              case 0:
+                if((leading_cars[1].s - car_s) > closeness_threshold) {
+                  lane_index = 1;
+                  state = LCR;
+                }
+                break;
+              case 1:
+                if((leading_cars[0].s - car_s) > closeness_threshold) {
+                  lane_index = 0;
+                  state = LCL;
+                }
+                else if((leading_cars[2].s - car_s) > closeness_threshold) {
+                  lane_index = 2;
+                  state = LCR;
+                }
+                break;
+              case 2:
+                if((leading_cars[1].s - car_s) > closeness_threshold) {
+                  lane_index = 1;
+                  state = LCL;
+                }
+                break;
+            }
+            if(state == KL) {
+                speed_ref = max(speed_ref - SPEED_CHANGE, speed_target); // break with 5 m/s2
+            }
+          } else {
+              speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
           }
 
           // vectors to generate path point in
