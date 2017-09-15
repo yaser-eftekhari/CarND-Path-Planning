@@ -168,12 +168,18 @@ void print_array(vector<double> array) {
   printf("\n");
 }
 
-const double HIGHEST_SPEED = 49.5 * 0.44704;
-const double SPEED_CHANGE = 0.224 * 0.44704;
+const double MPH2MPS = 0.44704;
+const double HIGHEST_SPEED = 49.5 * MPH2MPS;
+const double SPEED_CHANGE = 0.224 * MPH2MPS;
 const double closeness_threshold = 30; // if the other cars are 30 m or closer, take action
+const int PREFERED_LANE = 1;
+
+// We use only three states. Prepare lane change is discarded as we tend to do more sudden decisions here.
+enum planning_state {KL, LCL, LCR};
 
 int lane_index = 1; //left lane is 0, middle lane 1 and right lane 2
 double speed_ref = 0; // reference velocity for car to follow (m/sec)
+double speed_target = 0;
 
 int main() {
   uWS::Hub h;
@@ -242,6 +248,7 @@ int main() {
         	// Previous path data given to the Planner
         	auto previous_path_x = j[1]["previous_path_x"];
         	auto previous_path_y = j[1]["previous_path_y"];
+
         	// Previous path's end s and d values
         	double end_path_s = j[1]["end_path_s"];
         	double end_path_d = j[1]["end_path_d"];
@@ -251,10 +258,9 @@ int main() {
 
         	json msgJson;
 
-          // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+          // Beggining of implementation
           int prev_size = previous_path_x.size();
 
-          // TODO: do we really need this???
           if(prev_size > 0) {
             car_s = end_path_s;
           }
@@ -278,6 +284,7 @@ int main() {
               if((other_car_s > car_s) && (other_car_s - car_s < closeness_threshold)) {
                 // speed_ref = other_car_speed;
                 too_close = true;
+                speed_target = other_car_speed;
                 if(lane_index > 0) {
                   lane_index = 0;
                 }
@@ -287,9 +294,9 @@ int main() {
           }
 
           if(too_close) {
-            speed_ref -= SPEED_CHANGE; // break with 5 m/s2
+            speed_ref = max(speed_ref - SPEED_CHANGE, speed_target); // break with 5 m/s2
           } else if(speed_ref < HIGHEST_SPEED) {
-            speed_ref += SPEED_CHANGE;
+            speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
           }
 
           // vectors to generate path point in
