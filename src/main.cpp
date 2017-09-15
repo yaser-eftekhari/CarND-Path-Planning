@@ -181,6 +181,34 @@ int lane_index = 1; //left lane is 0, middle lane 1 and right lane 2
 double speed_ref = 0; // reference velocity for car to follow (m/sec)
 double speed_target = 0;
 
+struct neighboring_car {
+  double speed;
+  double currect_s;
+  double predicted_s;
+  int lane;
+};
+
+vector<neighboring_car> leading_cars(3);
+vector<neighboring_car> following_cars(3);
+vector<bool> feasible_lane_change(3);
+
+void initialize_neighboring_vectors(int lane_index) {
+  feasible_lane_change[0] = (lane_index < 2)? true : false;
+  feasible_lane_change[1] = true;
+  feasible_lane_change[2] = (lane_index > 0)? true : false;
+
+  following_cars.erase(following_cars.begin(), following_cars.end());
+  leading_cars.erase(leading_cars.begin(), leading_cars.end());
+}
+
+int find_lane(double d) {
+  if(d > 0 && d < 4)
+    return 0;
+  if(d > 4 && d < 8)
+    return 1;
+  return 2;
+}
+
 int main() {
   uWS::Hub h;
 
@@ -265,16 +293,26 @@ int main() {
             car_s = end_path_s;
           }
 
-          // Check all cars on the road to find possible collisions
+          // flag indicating if we have a car in front of us and it is close enough to take action
           bool too_close = false;
+
+          // Depending on the current lane, which other lanes can we go to
+          initialize_neighboring_vectors(lane_index);
+
+          // Check all cars on the road to find possible collisions
           for(int i = 0; i < sensor_fusion.size(); i++) {
             double other_car_d = sensor_fusion[i][6];
+
+            // find other cars current lane
+            int other_car_lane = find_lane(other_car_d);
+
             // if other car is in our lane
-            if((other_car_d > (4 * lane_index)) && (other_car_d < (4 * (lane_index + 1)))) {
-              // find the speed of the other car and its s coordinate
+            if(other_car_lane == lane_index) {
               double other_car_vx = sensor_fusion[i][3];
               double other_car_vy = sensor_fusion[i][4];
               double other_car_s = sensor_fusion[i][5];
+
+              // find the speed of the other car and its s coordinate
               double other_car_speed = distance(0, 0, other_car_vx, other_car_vy);
 
               // where the other car is going to be after simulator processes the remaining points
@@ -282,7 +320,6 @@ int main() {
 
               // Check to see if the other car is too close to us
               if((other_car_s > car_s) && (other_car_s - car_s < closeness_threshold)) {
-                // speed_ref = other_car_speed;
                 too_close = true;
                 speed_target = other_car_speed;
                 if(lane_index > 0) {
