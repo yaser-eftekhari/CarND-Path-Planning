@@ -317,6 +317,8 @@ int main() {
           // flag indicating if we have a car in front of us and it is close enough to take action
           bool too_close = false;
 
+          lane_index = find_lane(car_d);
+
           // Depending on the current lane, which other lanes can we go to
           initialize_neighboring_vectors(lane_index);
 
