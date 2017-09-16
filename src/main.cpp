@@ -191,6 +191,9 @@ struct neighboring_car {
 vector<neighboring_car> leading_cars(3);
 vector<neighboring_car> following_cars(3);
 vector<bool> feasible_lane_change(3);
+vector<neighboring_car> cars_in_left_lane;
+vector<neighboring_car> cars_in_middle_lane;
+vector<neighboring_car> cars_in_right_lane;
 
 void initialize_neighboring_vectors(int lane_index) {
   feasible_lane_change[0] = (lane_index < 2)? true : false;
@@ -213,6 +216,10 @@ void initialize_neighboring_vectors(int lane_index) {
   leading_cars.push_back(init_car);
   leading_cars.push_back(init_car);
   leading_cars.push_back(init_car);
+
+  cars_in_left_lane.erase(cars_in_left_lane.begin(), cars_in_left_lane.end());
+  cars_in_middle_lane.erase(cars_in_middle_lane.begin(), cars_in_middle_lane.end());
+  cars_in_right_lane.erase(cars_in_right_lane.begin(), cars_in_right_lane.end());
 }
 
 int find_lane(double d) {
@@ -328,12 +335,28 @@ int main() {
 
             // where the other car is going to be after simulator processes the remaining points
             other_car_s += prev_size * 0.02 * other_car_speed;
+            neighboring_car this_car;
+            this_car.s = other_car_s;
+            this_car.speed = other_car_speed;
 
             // other car is in front
             if(other_car_s > car_s) {
               if(leading_cars[other_car_lane].s > other_car_s) {
                 leading_cars[other_car_lane].s = other_car_s;
                 leading_cars[other_car_lane].speed = other_car_speed;
+              }
+
+              // add the car to the list of the cars in that lane
+              switch(other_car_lane) {
+                case 0:
+                  cars_in_left_lane.push_back(this_car);
+                  break;
+                case 1:
+                  cars_in_middle_lane.push_back(this_car);
+                  break;
+                case 2:
+                  cars_in_right_lane.push_back(this_car);
+                  break;
               }
             } else { // other car is following
               if(following_cars[other_car_lane].s < other_car_s) {
@@ -362,35 +385,37 @@ int main() {
           //   speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
           // }
 
-          // TODO: consider different thresholds for lane changing. If a there is a car in front which is close, but it is required to switch lane to pass them all, then we should switch lane
-          // TODO: consider cars that are following (not too far behind but basically side)
           // TODO: consider a cost function for the middle lane to choose the lane which has no car or the car is farther or it is going faster.
           // TODO: a good metric to choose a lane is the number of cars in that lane in front of us
-          // TODO: something to consider is if there are cars in front of us which are not still to close to do path planning but there is a lane which has no car in it, we should probably switch lane. So basically another threshold for path planning but more futuristic. Maybe we can switch lane if we find another lane which has no car in it (or less cars)
-          // TODO: FIX: sometimes car stays on the lane lines
+          // TODO: something to consider is if there are cars in front of us which are not still too close to do path planning but there is a lane which has no car in it, we should probably switch lane. So basically another threshold for path planning but more futuristic. Maybe we can switch lane if we find another lane which has no car in it (or less cars)
+          // TODO: FIX: sometimes car stays on the lane lines. This is because the lane change does not finish executing, hence some points on the lane remain in the buffer that causes the issue.
 
           // if we detected another car in our lane which is too close, consider changing lane
           planning_state state = KL;
           if(too_close) {
             switch(lane_index) {
               case 0:
-                if((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
+                if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+                  ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
                   lane_index = 1;
                   state = LCR;
                 }
                 break;
               case 1:
-                if((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
+                if(((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+                  ((car_s - following_cars[0].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
                   lane_index = 0;
                   state = LCL;
                 }
-                else if((leading_cars[2].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
+                else if(((leading_cars[2].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+                        ((car_s - following_cars[2].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
                   lane_index = 2;
                   state = LCR;
                 }
                 break;
               case 2:
-                if((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) {
+                if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+                    ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
                   lane_index = 1;
                   state = LCL;
                 }
