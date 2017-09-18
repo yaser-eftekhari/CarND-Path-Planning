@@ -171,7 +171,7 @@ void print_array(vector<double> array) {
 const double MPH2MPS = 0.44704;
 const double HIGHEST_SPEED = 49.5 * MPH2MPS;
 const double SPEED_CHANGE = 0.224 * MPH2MPS;
-const double DISTANCE_THRESHOLD_CHANGE_LANE = 10; // if the other car is not 5 m or closer, it is safe to switch lane
+const double DISTANCE_THRESHOLD_CHANGE_LANE = 7; // if the other car is not 5 m or closer, it is safe to switch lane
 const double DISTANCE_THRESHOLD_PATH_PLANNING = 30; // if the other cars are 30 m or closer, take action
 const int PREFERED_LANE = 1;
 const double CAR_LENGTH = 1.0;
@@ -373,19 +373,9 @@ int main() {
               if((other_car_s > car_s) && (other_car_s - car_s < DISTANCE_THRESHOLD_PATH_PLANNING)) {
                 too_close = true;
                 speed_target = other_car_speed;
-                // if(lane_index > 0) {
-                //   lane_index = 0;
-                // }
-                // break;
               }
             }
           }
-
-          // if(too_close) {
-          //   speed_ref = max(speed_ref - SPEED_CHANGE, speed_target); // break with 5 m/s2
-          // } else if(speed_ref < HIGHEST_SPEED) {
-          //   speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
-          // }
 
           // TODO: consider a cost function for the middle lane to choose the lane which has no car or the car is farther or it is going faster.
           // TODO: a good metric to choose a lane is the number of cars in that lane in front of us
@@ -404,10 +394,28 @@ int main() {
                 }
                 break;
               case 1:
-                if(((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-                  ((car_s - following_cars[0].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
-                  lane_index = 0;
-                  state = LCL;
+                // consider a lane that has no car first
+                if(cars_in_left_lane.size() == 0) {
+                  if(((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+                    ((car_s - following_cars[0].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+                    lane_index = 0;
+                    state = LCL;
+                  }
+                }
+                if(state == KL && cars_in_right_lane.size() == 0) {
+                  if(((leading_cars[2].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+                          ((car_s - following_cars[2].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+                    lane_index = 2;
+                    state = LCR;
+                  }
+                }
+                // if both lanes have cars in them then choose the lane whose car is farther
+                if(state == KL && (leading_cars[0].s > leading_cars[2].s)) {
+                  if(((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+                    ((car_s - following_cars[0].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+                    lane_index = 0;
+                    state = LCL;
+                  }
                 }
                 else if(((leading_cars[2].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
                         ((car_s - following_cars[2].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
