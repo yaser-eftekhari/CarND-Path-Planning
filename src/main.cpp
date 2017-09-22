@@ -230,6 +230,38 @@ int find_lane(double d) {
   return 2;
 }
 
+bool is_safe_change_lane(int from_lane, int to_lane, double car_s) {
+  switch(from_lane) {
+    case 0:
+      if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+         ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+        if(to_lane == 1) {
+          return true;
+        } else {
+          return is_safe_change_lane(1, 2, car_s);
+        }
+      }
+      return false;
+    case 1:
+      if(((leading_cars[to_lane].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+         ((car_s - following_cars[to_lane].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+        return true;
+      }
+      return false;
+    case 2:
+      if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+          ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+        if(to_lane == 1) {
+          return true;
+        } else {
+          return is_safe_change_lane(1, 0, car_s);
+        }
+      }
+      return false;
+  }
+  return false;
+}
+
 int main() {
   uWS::Hub h;
 
@@ -387,45 +419,39 @@ int main() {
           if(too_close) {
             switch(lane_index) {
               case 0:
-                if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-                  ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+                if(is_safe_change_lane(lane_index, 1, car_s)) {
                   lane_index = 1;
                   state = LCR;
                 }
                 break;
               case 1:
                 // consider a lane that has no car first
-                if(cars_in_left_lane.size() == 0) {
-                  if(((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-                    ((car_s - following_cars[0].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
-                    lane_index = 0;
-                    state = LCL;
-                  }
+                if((cars_in_left_lane.size() == 0) &&
+                   (is_safe_change_lane(lane_index, 0, car_s))) {
+                  lane_index = 0;
+                  state = LCL;
                 }
-                if(state == KL && cars_in_right_lane.size() == 0) {
-                  if(((leading_cars[2].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-                          ((car_s - following_cars[2].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+                else if((cars_in_right_lane.size() == 0) &&
+                        (is_safe_change_lane(lane_index, 2, car_s))) {
+                  lane_index = 2;
+                  state = LCR;
+                }
+                // if both lanes have cars in them then choose the lane whose car is farther
+                if(state == KL) {
+                  if(leading_cars[0].s > leading_cars[2].s) {
+                    if(is_safe_change_lane(lane_index, 0, car_s)) {
+                      lane_index = 0;
+                      state = LCL;
+                    }
+                  }
+                  else if(is_safe_change_lane(lane_index, 2, car_s)) {
                     lane_index = 2;
                     state = LCR;
                   }
                 }
-                // if both lanes have cars in them then choose the lane whose car is farther
-                if(state == KL && (leading_cars[0].s > leading_cars[2].s)) {
-                  if(((leading_cars[0].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-                    ((car_s - following_cars[0].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
-                    lane_index = 0;
-                    state = LCL;
-                  }
-                }
-                else if(((leading_cars[2].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-                        ((car_s - following_cars[2].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
-                  lane_index = 2;
-                  state = LCR;
-                }
                 break;
               case 2:
-                if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-                    ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+                if(is_safe_change_lane(lane_index, 1, car_s)) {
                   lane_index = 1;
                   state = LCL;
                 }
