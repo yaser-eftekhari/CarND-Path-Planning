@@ -230,34 +230,44 @@ int find_lane(double d) {
   return 2;
 }
 
+bool does_make_sense_to_change_lane(int from_lane, int to_lane) {
+  if(leading_cars[from_lane].s < leading_cars[to_lane].s) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool is_safe_change_lane(int from_lane, int to_lane, double car_s) {
-  switch(from_lane) {
-    case 0:
-      if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-         ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
-        if(to_lane == 1) {
-          return true;
-        } else {
-          return is_safe_change_lane(1, 2, car_s);
+  if(does_make_sense_to_change_lane(from_lane, to_lane)) {
+    switch(from_lane) {
+      case 0:
+        if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+           ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+          if(to_lane == 1) {
+            return true;
+          } else {
+            return is_safe_change_lane(1, 2, car_s);
+          }
         }
-      }
-      return false;
-    case 1:
-      if(((leading_cars[to_lane].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-         ((car_s - following_cars[to_lane].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
-        return true;
-      }
-      return false;
-    case 2:
-      if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
-          ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
-        if(to_lane == 1) {
+        return false;
+      case 1:
+        if(((leading_cars[to_lane].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+           ((car_s - following_cars[to_lane].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
           return true;
-        } else {
-          return is_safe_change_lane(1, 0, car_s);
         }
-      }
-      return false;
+        return false;
+      case 2:
+        if(((leading_cars[1].s - car_s) > DISTANCE_THRESHOLD_CHANGE_LANE) &&
+            ((car_s - following_cars[1].s) > DISTANCE_THRESHOLD_CHANGE_LANE)) {
+          if(to_lane == 1) {
+            return true;
+          } else {
+            return is_safe_change_lane(1, 0, car_s);
+          }
+        }
+        return false;
+    }
   }
   return false;
 }
@@ -458,10 +468,46 @@ int main() {
                 break;
             }
             if(state == KL) {
-                speed_ref = max(speed_ref - SPEED_CHANGE, speed_target); // break with 5 m/s2
+              speed_ref = max(speed_ref - SPEED_CHANGE, speed_target); // break with 5 m/s2
             }
           } else {
-              speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
+            // see if any lane is empty to jump to
+            // TODO: We should make sure there is no close traffic. Otherwise just stay in the lane
+            switch(lane_index) {
+              case 0:
+                if(cars_in_left_lane.size() != 0){
+                  if((cars_in_middle_lane.size() == 0) &&
+                     (is_safe_change_lane(lane_index, 1, car_s))) {
+                    lane_index = 1;
+                    state = LCR;
+                  }
+                }
+                break;
+              case 1:
+                if(cars_in_middle_lane.size() != 0) {
+                  if((cars_in_left_lane.size() == 0) &&
+                     (is_safe_change_lane(lane_index, 0, car_s))) {
+                    lane_index = 0;
+                    state = LCL;
+                  }
+                  else if((cars_in_right_lane.size() == 0) &&
+                          (is_safe_change_lane(lane_index, 2, car_s))) {
+                    lane_index = 2;
+                    state = LCR;
+                  }
+                }
+                break;
+              case 2:
+                if(cars_in_right_lane.size() != 0) {
+                  if((cars_in_middle_lane.size() == 0) &&
+                     (is_safe_change_lane(lane_index, 1, car_s))) {
+                    lane_index = 1;
+                    state = LCL;
+                  }
+                }
+                break;
+            }
+            speed_ref = min(speed_ref + SPEED_CHANGE, HIGHEST_SPEED);
           }
 
           // vectors to generate path point in
