@@ -35,36 +35,29 @@ string hasData(string s) {
   return "";
 }
 
-double distance(double x1, double y1, double x2, double y2)
-{
+double distance(double x1, double y1, double x2, double y2) {
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
 
-int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y)
-{
+int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y) {
 
 	double closestLen = 100000; //large number
 	int closestWaypoint = 0;
 
-	for(int i = 0; i < maps_x.size(); i++)
-	{
+	for(int i = 0; i < maps_x.size(); i++) {
 		double map_x = maps_x[i];
 		double map_y = maps_y[i];
 		double dist = distance(x,y,map_x,map_y);
-		if(dist < closestLen)
-		{
+		if(dist < closestLen) {
 			closestLen = dist;
 			closestWaypoint = i;
 		}
-
 	}
 
 	return closestWaypoint;
-
 }
 
-int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
-{
+int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y) {
 
 	int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
 
@@ -75,24 +68,20 @@ int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector
 
 	double angle = abs(theta-heading);
 
-	if(angle > pi()/4)
-	{
+	if(angle > pi()/4) {
 		closestWaypoint++;
 	}
 
 	return closestWaypoint;
-
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
-{
+vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y) {
 	int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
 
 	int prev_wp;
 	prev_wp = next_wp-1;
-	if(next_wp == 0)
-	{
+	if(next_wp == 0) {
 		prev_wp  = maps_x.size()-1;
 	}
 
@@ -109,37 +98,31 @@ vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x
 	double frenet_d = distance(x_x,x_y,proj_x,proj_y);
 
 	//see if d value is positive or negative by comparing it to a center point
-
 	double center_x = 1000-maps_x[prev_wp];
 	double center_y = 2000-maps_y[prev_wp];
 	double centerToPos = distance(center_x,center_y,x_x,x_y);
 	double centerToRef = distance(center_x,center_y,proj_x,proj_y);
 
-	if(centerToPos <= centerToRef)
-	{
+	if(centerToPos <= centerToRef) {
 		frenet_d *= -1;
 	}
 
 	// calculate s value
 	double frenet_s = 0;
-	for(int i = 0; i < prev_wp; i++)
-	{
+	for(int i = 0; i < prev_wp; i++) {
 		frenet_s += distance(maps_x[i],maps_y[i],maps_x[i+1],maps_y[i+1]);
 	}
 
 	frenet_s += distance(0,0,proj_x,proj_y);
 
 	return {frenet_s,frenet_d};
-
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y)
-{
+vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y) {
 	int prev_wp = -1;
 
-	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
-	{
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )) {
 		prev_wp++;
 	}
 
@@ -158,7 +141,6 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 	double y = seg_y + d*sin(perp_heading);
 
 	return {x,y};
-
 }
 
 void print_array(vector<double> array) {
@@ -173,8 +155,6 @@ const double HIGHEST_SPEED = 49.5 * MPH2MPS;
 const double SPEED_CHANGE = 0.224 * MPH2MPS;
 const double DISTANCE_THRESHOLD_CHANGE_LANE = 7; // if the other car is not 5 m or closer, it is safe to switch lane
 const double DISTANCE_THRESHOLD_PATH_PLANNING = 30; // if the other cars are 30 m or closer, take action
-const int PREFERED_LANE = 1;
-const double CAR_LENGTH = 1.0;
 
 // We use only three states. Prepare lane change is discarded as we tend to do more sudden decisions here.
 enum planning_state {KL, LCL, LCR};
@@ -188,18 +168,14 @@ struct neighboring_car {
   double s;
 };
 
-vector<neighboring_car> leading_cars(3);
-vector<neighboring_car> following_cars(3);
-vector<bool> feasible_lane_change(3);
-vector<neighboring_car> cars_in_left_lane;
-vector<neighboring_car> cars_in_middle_lane;
-vector<neighboring_car> cars_in_right_lane;
+vector<neighboring_car> leading_cars(3); // Nearest cars ahaead for all lanes
+vector<neighboring_car> following_cars(3); // Nearest cars behind for all lanes
+vector<neighboring_car> cars_in_left_lane; // total leading cars in left lane
+vector<neighboring_car> cars_in_middle_lane; // total leading cars in middle lane
+vector<neighboring_car> cars_in_right_lane; // total leading cars in right lane
 
+// Initializing variables
 void initialize_neighboring_vectors(int lane_index) {
-  feasible_lane_change[0] = (lane_index < 2)? true : false;
-  feasible_lane_change[1] = true;
-  feasible_lane_change[2] = (lane_index > 0)? true : false;
-
   neighboring_car init_car;
   init_car.s = 0;
   init_car.speed = 0;
@@ -230,6 +206,7 @@ int find_lane(double d) {
   return 2;
 }
 
+// It makes sense to change lane only if the car in the target lane is further than the one in the current lane
 bool does_make_sense_to_change_lane(int from_lane, int to_lane) {
   if(leading_cars[from_lane].s < leading_cars[to_lane].s) {
     return true;
@@ -238,6 +215,7 @@ bool does_make_sense_to_change_lane(int from_lane, int to_lane) {
   }
 }
 
+// Decides if it is safe to change lane
 bool is_safe_change_lane(int from_lane, int to_lane, double car_s) {
   if(does_make_sense_to_change_lane(from_lane, to_lane)) {
     switch(from_lane) {
@@ -317,7 +295,6 @@ int main() {
     //auto sdata = string(data).substr(0, length);
     //cout << sdata << endl;
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
-
       auto s = hasData(data);
 
       if (s != "") {
@@ -364,7 +341,7 @@ int main() {
           // Depending on the current lane, which other lanes can we go to
           initialize_neighboring_vectors(lane_index);
 
-          // Check all cars on the road to find possible collisions
+          // Check all cars on the road to gather information
           for(int i = 0; i < sensor_fusion.size(); i++) {
             double other_car_vx = sensor_fusion[i][3];
             double other_car_vy = sensor_fusion[i][4];
@@ -422,7 +399,6 @@ int main() {
           // TODO: consider a cost function for the middle lane to choose the lane which has no car or the car is farther or it is going faster.
           // TODO: a good metric to choose a lane is the number of cars in that lane in front of us
           // TODO: something to consider is if there are cars in front of us which are not still too close to do path planning but there is a lane which has no car in it, we should probably switch lane. So basically another threshold for path planning but more futuristic. Maybe we can switch lane if we find another lane which has no car in it (or less cars)
-          // TODO: FIX: sometimes car stays on the lane lines. This is because the lane change does not finish executing, hence some points on the lane remain in the buffer that causes the issue.
 
           // if we detected another car in our lane which is too close, consider changing lane
           planning_state state = KL;
@@ -472,7 +448,6 @@ int main() {
             }
           } else {
             // see if any lane is empty to jump to
-            // TODO: We should make sure there is no close traffic. Otherwise just stay in the lane
             switch(lane_index) {
               case 0:
                 if(cars_in_left_lane.size() != 0){
